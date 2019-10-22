@@ -1,3 +1,4 @@
+//go:generate mockgen -destination=mock/mock_http_wrapper.go -package=mock github.com/FenixAra/go-http/http HttpWrapper
 package http
 
 import (
