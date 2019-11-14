@@ -23,7 +23,7 @@ type httpwrapper struct {
 // Function to make HTTP request. method - HTTP method like GET, POST.
 // url - HTTP Request URL. req - Request of HTTP request
 // res - Pointer to response object
-func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}) error {
+func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}) (int, error) {
 	if method == http.MethodGet {
 		return h.getRequest(method, url, name, res)
 	}
@@ -45,7 +45,7 @@ func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}
 				body, err = json.Marshal(req)
 				if err != nil {
 					h.l.Errorf("Unable to marshal req: %+v. Err: %+v", req, err)
-					return err
+					return 0, err
 				}
 
 				reqBody = bytes.NewBuffer(body)
@@ -73,7 +73,7 @@ func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}
 				continue
 			}
 
-			return err
+			return 0, err
 		}
 
 		go h.l.Log(&log.Log{
@@ -93,13 +93,13 @@ func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}
 				continue
 			}
 
-			return err
+			return response.StatusCode, err
 		}
 
 		if response.StatusCode >= http.StatusBadRequest {
 			prom.TrackDependency(prom.DependencyHTTP, name, prom.StatusFailed, time.Since(s).Seconds())
 			h.l.Errorf("Response code is between 400 To 499. Code: %d", response.StatusCode)
-			return err
+			return response.StatusCode, err
 		}
 
 		prom.TrackDependency(prom.DependencyHTTP, name, prom.StatusSuccess, time.Since(s).Seconds())
@@ -107,22 +107,22 @@ func (h *httpwrapper) MakeRequest(method, url, name string, req, res interface{}
 			content, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				h.l.Errorf("Unable to read HTTP Response. Err: %+v", err)
-				return err
+				return response.StatusCode, err
 			}
 
 			err = json.Unmarshal(content, &res)
 			if err != nil {
 				h.l.Errorf("Unable to unmarshal HTTP Response. Err: %+v", err)
-				return err
+				return response.StatusCode, err
 			}
 		}
 
 		response.Body.Close()
-		return nil
+		return response.StatusCode, nil
 	}
 }
 
-func (h *httpwrapper) getRequest(method, url, name string, res interface{}) error {
+func (h *httpwrapper) getRequest(method, url, name string, res interface{}) (int, error) {
 	client := &http.Client{
 		Timeout: time.Duration(h.c.timeout) * time.Second,
 	}
@@ -133,7 +133,7 @@ func (h *httpwrapper) getRequest(method, url, name string, res interface{}) erro
 		request, err := http.NewRequest(method, url, nil)
 		if err != nil {
 			h.l.Errorf("Unable to create new HTTP Req. Err: %+v", err)
-			return err
+			return 0, err
 		}
 
 		for k, v := range h.c.headers {
@@ -150,7 +150,7 @@ func (h *httpwrapper) getRequest(method, url, name string, res interface{}) erro
 				continue
 			}
 
-			return err
+			return 0, err
 		}
 
 		go h.l.Log(&log.Log{
@@ -170,13 +170,13 @@ func (h *httpwrapper) getRequest(method, url, name string, res interface{}) erro
 				continue
 			}
 
-			return err
+			return response.StatusCode, err
 		}
 
 		if response.StatusCode >= http.StatusBadRequest {
 			prom.TrackDependency(prom.DependencyHTTP, name, prom.StatusFailed, time.Since(s).Seconds())
 			h.l.Errorf("Response code is between 400 To 499. Code: %d", response.StatusCode)
-			return err
+			return response.StatusCode, err
 		}
 
 		prom.TrackDependency(prom.DependencyHTTP, name, prom.StatusSuccess, time.Since(s).Seconds())
@@ -184,17 +184,17 @@ func (h *httpwrapper) getRequest(method, url, name string, res interface{}) erro
 			content, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				h.l.Errorf("Unable to read HTTP Response. Err: %+v", err)
-				return err
+				return response.StatusCode, err
 			}
 
 			err = json.Unmarshal(content, &res)
 			if err != nil {
 				h.l.Errorf("Unable to unmarshal HTTP Response. Err: %+v", err)
-				return err
+				return response.StatusCode, err
 			}
 		}
 
 		response.Body.Close()
-		return nil
+		return response.StatusCode, nil
 	}
 }

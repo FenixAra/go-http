@@ -7,7 +7,7 @@ import (
 
 // HttpWrapper is the abstracted interface of http
 type HttpWrapper interface {
-	MakeRequest(method, url, name string, req, res interface{}) error
+	MakeRequest(method, url, name string, req, res interface{}) (int, error)
 }
 
 // New is used to get new HTTP wrapper object
